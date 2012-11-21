@@ -1,0 +1,7 @@
+-module(hcr_config).
+
+-export([incr1/1, incr2/1]).
+
+incr1({model, _} = M) -> hcr_model:v1(M).
+
+incr2({model, _} = M) -> hcr_model:v2(M).

@@ -1,0 +1,28 @@
+-module(hcr_model).
+
+-export([new/0, perform_action/1]).
+-export([v1/1, v2/1]).
+
+%% represent model as tagged proplist, to able to have
+%% somewhat useful -specs and make sure we are dealing
+%% with the right model in the accessors
+new() -> {model, [{v1, 1}]}.
+
+perform_action({model, _} = Model) ->
+    Fs = [ fun (M) -> v1(M, v1(M) + hcr_config:incr1(M)) end
+         , fun (M) -> v2(M, v2(M) + hcr_config:incr2(M)) end
+         ],
+    lists:foldl(fun (F, M) -> F(M) end, Model, Fs).
+
+%% ===================================================================
+%% Accessors
+%% ===================================================================
+
+v1({model, P}) -> proplists:get_value(v1, P, 1).
+
+v1({model, P}, N) -> {model, lists:keystore(v1, 1, P, {v1, N})}.
+
+
+v2({model, P}) -> proplists:get_value(v2, P, 1).
+
+v2({model, P}, N) -> {model, lists:keystore(v2, 1, P, {v2, N})}.
