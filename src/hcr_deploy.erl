@@ -20,7 +20,7 @@ reload_app() ->
 
 modules_for_app(App) when App =:= hot_code_reload ->
     case code:where_is_file(atom_to_list(App) ++ ".app") of
-        {error, enoent} ->
+        non_existing ->
             {error, no_app_file};
         Path ->
             case file:consult(Path) of
