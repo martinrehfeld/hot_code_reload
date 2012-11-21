@@ -1,0 +1,12 @@
+{application, hot_code_reload,
+ [
+  {description, ""},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {mod, { hot_code_reload_app, []}},
+  {env, []}
+ ]}.
