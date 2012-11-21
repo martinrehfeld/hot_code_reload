@@ -1,3 +1,4 @@
+-compile({parse_transform, hcr_accessors}).
 -module(hcr_model).
 -include("hcr.hrl").
 
