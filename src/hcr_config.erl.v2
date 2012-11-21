@@ -1,9 +1,15 @@
 -module(hcr_config).
+-include("hcr.hrl").
 
 -export([incr1/1, incr2/1]).
 
+-export_type([type/0]).
+-type type() :: 'test'.
+
+-spec incr1(type() | model()) -> non_neg_integer().
 incr1(test) -> 1;
 incr1({model, Type, _}) -> incr1(Type).
 
+-spec incr2(type() | model()) -> non_neg_integer().
 incr2(test) -> 2;
 incr2({model, Type, _}) -> incr2(Type).
