@@ -31,5 +31,5 @@ perform_action(M) -> v1(M, v1(M) + hcr_config:incr1(M)).
 %% Accessors
 %% ===================================================================
 
-v1(M)    -> (hcr_accessors:getter(model, v1))(M).
+v1(M)    -> (hcr_accessors:getter(model, v1, 1))(M).
 v1(M, V) -> (hcr_accessors:setter(model, v1))(M, V).

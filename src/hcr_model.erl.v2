@@ -34,8 +34,8 @@ perform_action({model, _, _} = Model) ->
 %% Accessors
 %% ===================================================================
 
-v1(M)    -> (hcr_accessors:getter(model, v1))(M).
+v1(M)    -> (hcr_accessors:getter(model, v1, 0))(M).
 v1(M, V) -> (hcr_accessors:setter(model, v1))(M, V).
 
-v2(M)    -> (hcr_accessors:getter(model, v2))(M).
+v2(M)    -> (hcr_accessors:getter(model, v2, 0))(M).
 v2(M, V) -> (hcr_accessors:setter(model, v2))(M, V).
