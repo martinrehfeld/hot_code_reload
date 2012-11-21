@@ -4,8 +4,7 @@
 -export([new/0, perform_action/1]).
 -export([v1/1]).
 
--export_type([name/0, property/0]).
--type name() :: model.
+-export_type([property/0]).
 -type property() :: {v1, non_neg_integer()}.
 
 

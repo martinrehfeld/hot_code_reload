@@ -5,8 +5,6 @@
 
 -type model() :: {model, hcr_config:type(), [hcr_model:property()]}.
 
--type any_model() :: model(). % | another_model() |...
-
 %% example composite state, e.g. User
 -type state_property() :: {model, model()}. % | {another_model, another_model()} | ...
 -type state() :: [state_property()].
