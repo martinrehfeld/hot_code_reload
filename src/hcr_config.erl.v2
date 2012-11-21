@@ -8,8 +8,10 @@
 
 -spec incr1(type() | model()) -> non_neg_integer().
 incr1(test) -> 1;
-incr1({model, Type, _}) -> incr1(Type).
+incr1({model, Type, _}) -> incr1(Type);
+incr1(A) -> erlang:throw({hcr, no_config, [?MODULE, incr1, A]}).
 
 -spec incr2(type() | model()) -> non_neg_integer().
 incr2(test) -> 2;
-incr2({model, Type, _}) -> incr2(Type).
+incr2({model, Type, _}) -> incr2(Type);
+incr2(A) -> erlang:throw({hcr, no_config, [?MODULE, incr2, A]}).
