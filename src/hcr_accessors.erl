@@ -37,49 +37,48 @@ parse_transform(Ast, _Options) ->
 %% ===================================================================
 
 walk_ast(Acc, []) ->
-    %% @todo insert export clauses
     lists:reverse(Acc);
 walk_ast(Acc, [{function,_,_,1,Clauses}=H|T]) ->
-    Form = setelement(5, H, maybe_replace_getter(Clauses)),
+    Form = setelement(5, H, [maybe_transform_getter(C) || C <- Clauses]),
     walk_ast([Form|Acc], T);
 walk_ast(Acc, [{function,_,_,2,Clauses}=H|T]) ->
-    Form = setelement(5, H, maybe_replace_setter(Clauses)),
+    Form = setelement(5, H, [maybe_transform_setter(C) || C <- Clauses]),
     walk_ast([Form|Acc], T);
 walk_ast(Acc, [H|T]) ->
     walk_ast([H|Acc], T).
 
-maybe_replace_getter(
-    [{clause,Line,
-      [{var,_,_VarM}],
-      [],
-      [{call,_,
-        {call,_,
-         {remote,_,{atom,_,hcr_accessors},{atom,_,getter}},
-         [{atom,_,Tag},{atom,_,Name},DefaultTerm]
-        },
-        [{var,_,_VarM}]}]}]) ->
-    %% io:format("Optimizing getter ~p~n", [{Tag, Name, DefaultTerm}]),
-    [getter_clause(Tag, Name, DefaultTerm, Line)];
-maybe_replace_getter(Cs) ->
+maybe_transform_getter(
+    {clause,Line,
+     [{var,_,_VarM}],
+     [],
+     [{call,_,
+       {call,_,
+        {remote,_,{atom,_,hcr_accessors},{atom,_,getter}},
+        [{atom,_,Tag},{atom,_,Name},{DefaultType,_,DefaultValue}]
+       },
+       [{var,_,_VarM}]}]}) ->
+    %% io:format("Optimizing getter ~p~n", [{Tag, Name, DefaultValue}]),
+    getter_clause(Tag, Name, DefaultType, DefaultValue, Line);
+maybe_transform_getter(Cs) ->
     Cs.
 
-maybe_replace_setter(
-    [{clause,Line,
-      [{var,_,_VarM},{var,_,_VarV}],
-      [],
-      [{call,_,
-        {call,_,
-         {remote,_,{atom,_,hcr_accessors},{atom,_,setter}},
-         [{atom,_,Tag},{atom,_,Name}]
-        },
-        [{var,_,_VarM},{var,_,_VarV}]}]}]) ->
+maybe_transform_setter(
+    {clause,Line,
+     [{var,_,_VarM},{var,_,_VarV}],
+     [],
+     [{call,_,
+       {call,_,
+        {remote,_,{atom,_,hcr_accessors},{atom,_,setter}},
+        [{atom,_,Tag},{atom,_,Name}]
+       },
+       [{var,_,_VarM},{var,_,_VarV}]}]}) ->
     %% io:format("Optimizing setter ~p~n", [{Tag, Name}]),
-    [setter_clause(Tag, Name, Line)];
-maybe_replace_setter(Cs) ->
+    setter_clause(Tag, Name, Line);
+maybe_transform_setter(Cs) ->
     Cs.
 
 %% @doc This is AST equivalent of getter/3's returned Fun
-getter_clause(Tag, Name, {DefaultType, _, DefaultValue}, Line)
+getter_clause(Tag, Name, DefaultType, DefaultValue, Line)
   when is_atom(Tag) andalso is_atom(Name) andalso is_integer(Line) ->
     {clause,Line,
      [{tuple,Line,[{atom,Line,Tag},{var,Line,'_'},{var,Line,'P'}]}],
