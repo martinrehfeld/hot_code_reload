@@ -24,11 +24,8 @@ perform_action({model, _, _} = Model) ->
 %% Accessors
 %% ===================================================================
 
-v1({model, _, P}) -> proplists:get_value(v1, P, 1).
+v1(M)    -> (hcr_accessors:getter(model, v1))(M).
+v1(M, V) -> (hcr_accessors:setter(model, v1))(M, V).
 
-v1({model, T, P}, N) -> {model, T, lists:keystore(v1, 1, P, {v1, N})}.
-
-
-v2({model, _, P}) -> proplists:get_value(v2, P, 1).
-
-v2({model, T, P}, N) -> {model, T, lists:keystore(v2, 1, P, {v2, N})}.
+v2(M)    -> (hcr_accessors:getter(model, v2))(M).
+v2(M, V) -> (hcr_accessors:setter(model, v2))(M, V).

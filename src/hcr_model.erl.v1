@@ -22,6 +22,5 @@ perform_action(M) -> v1(M, v1(M) + hcr_config:incr1(M)).
 %% Accessors
 %% ===================================================================
 
-v1({model, _, P}) -> proplists:get_value(v1, P, 1).
-
-v1({model, T, P}, N) -> {model, T, lists:keystore(v1, 1, P, {v1, N})}.
+v1(M)    -> (hcr_accessors:getter(model, v1))(M).
+v1(M, V) -> (hcr_accessors:setter(model, v1))(M, V).
