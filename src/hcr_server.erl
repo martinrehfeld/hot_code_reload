@@ -1,5 +1,6 @@
 -module(hcr_server).
 -behaviour(gen_server).
+-include("hcr.hrl").
 
 -export([start_link/0, perform_action/0]).
 
@@ -24,15 +25,16 @@ perform_action() ->
 %%% gen_server callbacks
 %%%===================================================================
 
-init([]) -> {ok, hcr_model:new()}.
+init([]) -> {ok, [{model, hcr_model:new()}]}.
 
 handle_call(_Req, _From, S) -> {noreply, S}.
 
-handle_cast(perform_action, M) ->
+-spec handle_cast(perform_action, state()) -> {noreply, state()}.
+handle_cast(perform_action, [{model, M}]) ->
     M1 = hcr_model:perform_action(M),
     error_logger:info_msg("Updated model from ~p~n"
                           "              to   ~p~n", [M, M1]),
-    {noreply, M1}.
+    {noreply, [{model, M1}]}.
 
 handle_info(_Info, S) -> {noreply, S}.
 
