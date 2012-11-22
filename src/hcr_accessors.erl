@@ -1,4 +1,5 @@
 -module(hcr_accessors).
+-include("hcr.hrl").
 
 %% Activate optimized accessors in your model with
 %%     -compile({parse_transform, hcr_accessors}).
@@ -9,6 +10,7 @@
 %%     v1(M, V) -> (hcr_accessors:setter(model, v1))(M, V).
 -export([parse_transform/2]).
 
+-export([init_defaults/3]).
 -export([getter/3, setter/2]).
 
 
@@ -16,11 +18,21 @@
 %% API functions
 %% ===================================================================
 
+%% @doc Initialize given properties with its defaults
+%% when they are not already set
+-spec init_defaults(module(), M, [atom()]) -> M when M :: any_model().
+init_defaults(Mod, State, Properties) ->
+    Accessors = [ {fun Mod:P/1, fun Mod:P/2} || P <- Properties],
+    Fs = [ fun(S) -> W(S, R(S)) end || {R, W} <- Accessors ],
+    lists:foldl(fun (F, S) -> F(S) end, State, Fs).
+
+
 %% @doc Generate a getter for a given model, propery and default value
 getter(Tag, Name, Default) ->
     fun({T, _, P}) when T =:= Tag ->
             proplists:get_value(Name, P, Default)
     end.
+
 
 %% @doc Generate a setter for a given model and propery
 setter(Tag, Name) ->

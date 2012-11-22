@@ -25,7 +25,7 @@ perform_action() ->
 %%% gen_server callbacks
 %%%===================================================================
 
-init([]) -> {ok, [{model, hcr_model:new()}]}.
+init([]) -> {ok, [{model, hcr_model:new(test)}]}.
 
 handle_call(_Req, _From, S) -> {noreply, S}.
 

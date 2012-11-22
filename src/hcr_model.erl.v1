@@ -2,8 +2,8 @@
 -module(hcr_model).
 -include("hcr.hrl").
 
--export([new/0, perform_action/1]).
--export([v1/1]).
+-export([new/1, perform_action/1]).
+-export([v1/1, v1/2]).
 
 -export_type([property/0]).
 -type property() :: {v1, non_neg_integer()}.
@@ -15,13 +15,10 @@
 %%
 %% We could use the type aka primary key as an additional
 %% element in the tuple, e.g. {g8_tree, pine, [Property]}
--spec new() -> model().
-new() ->
-    Templ = {model, test, []},
-    %% set defaults
-    Fs = [ fun(M) -> v1(M, v1(M)) end
-         ],
-    lists:foldl(fun (F, M) -> F(M) end, Templ, Fs).
+-spec new(hcr_config:type()) -> model().
+new(Type) ->
+    Model = {model, Type, []},
+    hcr_accessors:init_defaults(?MODULE, Model, [v1]).
 
 
 -spec perform_action(model()) -> model().
