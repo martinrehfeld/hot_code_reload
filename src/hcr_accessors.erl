@@ -1,17 +1,26 @@
 -module(hcr_accessors).
 -include("hcr.hrl").
 
-%% Activate optimized accessors in your model with
+%% Activate accessor generation in your model with
 %%     -compile({parse_transform, hcr_accessors}).
 %%
-%% The parse transformation will look for getters/setters like this
-%% and will perform the function generation at compile time:
-%%     v1(M)    -> (hcr_accessors:getter(model, v1, 1))(M).
-%%     v1(M, V) -> (hcr_accessors:setter(model, v1))(M, V).
+%% Use
+%%     ?ATTR_READER([{prop1, defaultvalue1}, ...]).
+%%     ?ATTR_ACCESSOR([{prop1, defaultvalue1}, ...]).
+%%     ?ATTR_WRITER([prop1, ...]).
+%% to generate getters and/or setters.
+
 -export([parse_transform/2]).
 
 -export([init_defaults/3]).
--export([getter/3, setter/2]).
+
+-record(state, { expected = any
+               , exports  = []
+               , readers  = []
+               , writers  = []
+               , eof_line = 9999
+               , module
+               }).
 
 
 %% ===================================================================
@@ -27,92 +36,133 @@ init_defaults(Mod, State, Properties) ->
     lists:foldl(fun (F, S) -> F(S) end, State, Fs).
 
 
-%% @doc Generate a getter for a given model, propery and default value
-getter(Tag, Name, Default) ->
-    fun({T, _, P}) when T =:= Tag ->
-            proplists:get_value(Name, P, Default)
-    end.
+parse_transform(Forms, Options) ->
+    {Forms1, S} =
+        parse_trans:transform(fun xform_fun/4, #state{}, Forms, Options),
 
+    Forms2 = lists:foldl(fun ({M,A}, Acc) ->
+                                 parse_trans:export_function(M,A,Acc)
+                         end, Forms1, S#state.exports),
 
-%% @doc Generate a setter for a given model and propery
-setter(Tag, Name) ->
-    fun({T, Type, P}, V) when T =:= Tag ->
-            {T, Type, lists:keystore(Name, 1, P, {Name,V})}
-    end.
+    Forms3 = parse_trans:do_insert_forms(
+        below,
+        [ reader_form(S#state.module, Name, Default, S#state.eof_line)
+            || {Name, Default} <- S#state.readers ],
+        Forms2,
+        parse_trans:initial_context(Forms2, [])
+    ),
 
+    Forms4 = parse_trans:do_insert_forms(
+        below,
+        [ writer_form(S#state.module, Name, S#state.eof_line)
+            || Name <- S#state.writers ],
+        Forms3,
+        parse_trans:initial_context(Forms3, [])
+    ),
+    Result = parse_trans:revert(Forms4),
+    %% io:format("~n~n~nREWRITTEN~n~p~n", [Result]),
+    Result.
 
-parse_transform(Ast, _Options) ->
-    walk_ast([], Ast).
 
 %% ===================================================================
 %% Internal functions
 %% ===================================================================
 
-walk_ast(Acc, []) ->
-    lists:reverse(Acc);
-walk_ast(Acc, [{function,_,_,1,Clauses}=H|T]) ->
-    Form = setelement(5, H, [maybe_transform_getter(C) || C <- Clauses]),
-    walk_ast([Form|Acc], T);
-walk_ast(Acc, [{function,_,_,2,Clauses}=H|T]) ->
-    Form = setelement(5, H, [maybe_transform_setter(C) || C <- Clauses]),
-    walk_ast([Form|Acc], T);
-walk_ast(Acc, [H|T]) ->
-    walk_ast([H|Acc], T).
+xform_fun(eof_marker, {eof, Line}=Form, Ctx, S) ->
+    %% io:format("~p~n~p~n~n", [eof_marker, {Form, Ctx, S}]),
+    {Form, true, S#state{eof_line = Line,
+                         module   = parse_trans:context(module, Ctx)}};
+xform_fun(Type, Form, Ctx, S) ->
+    %% io:format("~p~n~p~n~n", [Type, {Form, Ctx, S}]),
+    case {parse_trans:context(function, Ctx), parse_trans:context(arity, Ctx)} of
+        {attr_reader, 0}   -> parse_reader(Type, Form, Ctx, S);
+        {attr_writer, 0}   -> parse_writer(Type, Form, Ctx, S);
+        {attr_accessor, 0} -> parse_accessor(Type, Form, Ctx, S);
+        {_, _}             -> {Form, true, S#state{expected=any}}
+    end.
 
-maybe_transform_getter(
-    {clause,Line,
-     [{var,_,_VarM}],
-     [],
-     [{call,_,
-       {call,_,
-        {remote,_,{atom,_,hcr_accessors},{atom,_,getter}},
-        [{atom,_,Tag},{atom,_,Name},{DefaultType,_,DefaultValue}]
-       },
-       [{var,_,_VarM}]}]}) ->
-    %% io:format("Optimizing getter ~p~n", [{Tag, Name, DefaultValue}]),
-    getter_clause(Tag, Name, DefaultType, DefaultValue, Line);
-maybe_transform_getter(Cs) ->
-    Cs.
 
-maybe_transform_setter(
-    {clause,Line,
-     [{var,_,_VarM},{var,_,_VarV}],
-     [],
-     [{call,_,
-       {call,_,
-        {remote,_,{atom,_,hcr_accessors},{atom,_,setter}},
-        [{atom,_,Tag},{atom,_,Name}]
-       },
-       [{var,_,_VarM},{var,_,_VarV}]}]}) ->
-    %% io:format("Optimizing setter ~p~n", [{Tag, Name}]),
-    setter_clause(Tag, Name, Line);
-maybe_transform_setter(Cs) ->
-    Cs.
+parse_reader(atom, Form, _Ctx, #state{expected=any, exports=Exports}=S) ->
+    {Form, true, S#state{expected=clause,
+                         exports = [{attr_reader, 0} | Exports]}};
+parse_reader(clause, Form, _Ctx, #state{expected=clause}=S) ->
+    {Form, true, S#state{expected=list}};
+parse_reader(list, Form, _Ctx, #state{expected=list}=S) ->
+    {Form, true, S#state{expected=tuple}};
+parse_reader(tuple, {tuple, _, [{atom, _, Name}, Default]}=Form, _Ctx,
+             #state{expected=tuple, exports=Exports, readers=Readers}=S) ->
+    {Form, false, S#state{readers  = [{Name, Default} | Readers],
+                          exports  = [{Name, 1} | Exports],
+                          expected = list}};
+parse_reader(Type, Form, _Ctx, #state{expected=Expected}) ->
+    parse_trans:error("Invalid attr_reader list", Form,
+        [{form, Form}, {got, Type}, {expected, Expected}]).
+
+
+parse_writer(atom, Form, _Ctx, #state{expected=any, exports=Exports}=S) ->
+    {Form, true, S#state{expected = clause,
+                         exports  = [{attr_writer, 0} | Exports]}};
+parse_writer(clause, Form, _Ctx, #state{expected=clause}=S) ->
+    {Form, true, S#state{expected=list}};
+parse_writer(list, Form, _Ctx, #state{expected=list}=S) ->
+    {Form, true, S#state{expected=atom}};
+parse_writer(atom, {atom, _, Name}=Form, _Ctx,
+             #state{expected=atom, exports=Exports, writers=Writers}=S) ->
+    {Form, false, S#state{writers  = [Name | Writers],
+                          exports  = [{Name, 2} | Exports],
+                          expected = atom}};
+parse_writer(Type, Form, _Ctx, #state{expected=Expected}) ->
+    parse_trans:error("Invalid attr_writer list", Form,
+        [{form, Form}, {got, Type}, {expected, Expected}]).
+
+
+parse_accessor(atom, Form, _Ctx, #state{expected=any, exports=Exports}=S) ->
+    {Form, true, S#state{expected = clause,
+                         exports  = [{attr_accessor, 0} | Exports]}};
+parse_accessor(clause, Form, _Ctx, #state{expected=clause}=S) ->
+    {Form, true, S#state{expected=list}};
+parse_accessor(list, Form, _Ctx, #state{expected=list}=S) ->
+    {Form, true, S#state{expected=tuple}};
+parse_accessor(tuple, {tuple, _, [{atom, _, Name}, Default]}=Form, _Ctx,
+             #state{expected=tuple, exports=Exports,
+                    readers=Readers, writers=Writers}=S) ->
+    {Form, false, S#state{readers  = [{Name, Default} | Readers],
+                          writers  = [Name | Writers],
+                          exports  = [{Name, 1} | [{Name, 2} | Exports]],
+                          expected = list}};
+parse_accessor(Type, Form, _Ctx, #state{expected=Expected}) ->
+    parse_trans:error("Invalid attr_accessor list", Form,
+        [{form, Form}, {got, Type}, {expected, Expected}]).
+
 
 %% @doc This is AST equivalent of getter/3's returned Fun
-getter_clause(Tag, Name, DefaultType, DefaultValue, Line)
+reader_form(Tag, Name, Default, Line)
   when is_atom(Tag) andalso is_atom(Name) andalso is_integer(Line) ->
-    {clause,Line,
-     [{tuple,Line,[{atom,Line,Tag},{var,Line,'_'},{var,Line,'P'}]}],
-     [],
-     [{call,Line,{remote,Line,{atom,Line,proplists},{atom,Line,get_value}},
-       [{atom,Line,Name},
-        {var,Line,'P'},
-        {DefaultType,Line,DefaultValue}
-       ]}]}.
+    {function, Line, Name, 1,
+       [{clause,Line,
+         [{tuple,Line,[{atom,Line,Tag},{var,Line,'_'},{var,Line,'P'}]}],
+         [],
+         [{call,Line,{remote,Line,{atom,Line,proplists},{atom,Line,get_value}},
+           [{atom,Line,Name},
+            {var,Line,'P'},
+            Default
+           ]}]}]
+    }.
 
 %% @doc This is AST equivalent of setter/2's returned Fun
-setter_clause(Tag, Name, Line)
+writer_form(Tag, Name, Line)
   when is_atom(Tag) andalso is_atom(Name) andalso is_integer(Line) ->
-    {clause,Line,
-     [{tuple,Line,[{atom,Line,Tag},{var,Line,'T'},{var,Line,'P'}]}, {var,Line,'V'}],
-     [],
-     [{tuple,Line,
-       [{atom,Line,Tag},
-        {var,Line,'T'},
-        {call,Line,{remote,Line,{atom,Line,lists},{atom,Line,keystore}},
-         [{atom,Line,Name},
-          {integer,Line,1},
-          {var,Line,'P'},
-          {tuple,Line,[{atom,Line,Name},{var,Line,'V'}]}
-         ]}]}]}.
+    {function, Line, Name, 2,
+       [{clause,Line,
+         [{tuple,Line,[{atom,Line,Tag},{var,Line,'T'},{var,Line,'P'}]}, {var,Line,'V'}],
+         [],
+         [{tuple,Line,
+           [{atom,Line,Tag},
+            {var,Line,'T'},
+            {call,Line,{remote,Line,{atom,Line,lists},{atom,Line,keystore}},
+             [{atom,Line,Name},
+              {integer,Line,1},
+              {var,Line,'P'},
+              {tuple,Line,[{atom,Line,Name},{var,Line,'V'}]}
+             ]}]}]}]
+    }.
