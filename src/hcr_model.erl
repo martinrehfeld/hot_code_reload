@@ -16,13 +16,11 @@
 %% We could use the type aka primary key as an additional
 %% element in the tuple, e.g. {g8_tree, pine, [Property]}
 -spec new(hcr_config:type()) -> model().
-new(Type) ->
-    Model = {hcr_model, Type, []},
-    hcr_accessors:init_defaults(?MODULE, Model, [v1]).
+new(Type) -> {?MODULE, Type, []}.
 
 
 -spec perform_action(model()) -> model().
-perform_action(M) -> v1(M, v1(M) + hcr_config:incr1(M)).
+perform_action({?MODULE, _, _} = M) -> v1(M, v1(M) + hcr_config:incr1(M)).
 
 
 %% ===================================================================

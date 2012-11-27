@@ -16,13 +16,11 @@
 %% somewhat useful -specs and make sure we are dealing
 %% with the right model in the accessors
 -spec new(hcr_config:type()) -> model().
-new(Type) ->
-    Model = {hcr_model, Type, []},
-    hcr_accessors:init_defaults(?MODULE, Model, [v1, v2]).
+new(Type) -> Model = {?MODULE, Type, []}.
 
 
 -spec perform_action(model()) -> model().
-perform_action({hcr_model, _, _} = Model) ->
+perform_action({?MODULE, _, _} = Model) ->
     Fs = [ fun (M) -> v1(M, v1(M) + hcr_config:incr1(M)) end
          , fun (M) -> v2(M, v2(M) + hcr_config:incr2(M)) end
          ],
